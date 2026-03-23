@@ -1,0 +1,26 @@
+
+---
+project_name: sb_stack
+deploy_root: /opt/{{ project_name }}
+
+fqdn: bans.friendgroupb.com
+
+local_sites_dir: sites
+
+docker_network_name: app_bridge
+docker_network_subnet: 172.30.0.0/24
+
+caddy_image: caddy:latest
+php_image_base: php:8.3-fpm-bookworm
+mariadb_image: mariadb:11.4
+
+php_fpm_listen: 127.0.0.1:9000
+php_app_uid: 10001
+php_app_gid: 10001
+
+db_name: CHANGEMEDBNAME
+db_user: CHANGEMEUSER
+db_password: CHANGEMEPW
+db_root_password: CHANGEMEROOTPW
+
+db_allowed_remote_host: "1.1.1.1"

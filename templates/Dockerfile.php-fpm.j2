@@ -1,0 +1,17 @@
+FROM {{ php_image_base }}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libgmp-dev \
+        lib32z1 \
+    && docker-php-ext-install gmp mysqli pdo_mysql bcmath \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -g {{ php_app_gid }} app \
+    && useradd -u {{ php_app_uid }} -g {{ php_app_gid }} -d /nonexistent -s /usr/sbin/nologin app
+
+WORKDIR /srv/sites
+
+USER {{ php_app_uid }}:{{ php_app_gid }}
+
+CMD ["php-fpm", "-F"]

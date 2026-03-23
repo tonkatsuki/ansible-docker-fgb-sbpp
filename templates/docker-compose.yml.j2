@@ -1,0 +1,93 @@
+services:
+  caddy:
+    image: {{ caddy_image }}
+    container_name: caddy
+    restart: unless-stopped
+    user: "1000:1000"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/srv/sites:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    networks:
+      - app_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+
+  php:
+    build:
+      context: ./php
+      dockerfile: Dockerfile
+    container_name: php-fpm
+    restart: unless-stopped
+    user: "{{ php_app_uid }}:{{ php_app_gid }}"
+    network_mode: "service:caddy"
+    depends_on:
+      - caddy
+    volumes:
+      - ./sites:/srv/sites:ro
+      - ./sites/demos:/srv/sites/demos:rw
+      - ./sites/cache:/srv/sites/cache:rw
+      - ./sites/themes_c:/srv/sites/themes_c:rw
+      - ./sites/images/games:/srv/sites/images/games:rw
+      - ./sites/images/maps:/srv/sites/images/maps:rw
+      - ./sites/templates_c:/srv/sites/templates_c:rw
+      - ./php/www.conf:/usr/local/etc/php-fpm.d/www.conf:ro
+      - ./php/php.ini:/usr/local/etc/php/conf.d/zz-custom.ini:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+
+  mariadb:
+    image: {{ mariadb_image }}
+    container_name: mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: "{{ db_root_password }}"
+      MARIADB_DATABASE: "{{ db_name }}"
+      MARIADB_USER: "{{ db_user }}"
+      MARIADB_PASSWORD: "{{ db_password }}"
+      MARIADB_ROOT_HOST: "localhost"
+    command:
+      - --skip-name-resolve
+      - --bind-address=0.0.0.0
+      - --local-infile=0
+      - --skip-symbolic-links
+{% if db_host_bind_ip is defined %}
+    ports:
+      - "{{ db_host_bind_ip }}:3306:3306"
+{% else %}
+    ports:
+      - "3306:3306"
+{% endif %}
+    volumes:
+      - ./mariadb/data:/var/lib/mysql
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - app_net
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  app_net:
+    driver: bridge
+    name: {{ docker_network_name }}
+    ipam:
+      config:
+        - subnet: {{ docker_network_subnet }}

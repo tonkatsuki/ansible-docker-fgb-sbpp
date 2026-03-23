@@ -1,0 +1,57 @@
+https://bans.friendgroupb.com {
+	root * /srv/sites
+	@blocked {
+        path */.env
+        path */.git/*
+        path */composer.json
+        path */composer.lock
+    }
+	encode gzip zstd
+	php_fastcgi 127.0.0.1:9000
+	file_server
+	header {
+        # Remove server identification
+        -Server
+        -X-Powered-By
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        Permissions-Policy "geolocation=(), camera=(), microphone=(), payment=()"
+        X-XSS-Protection "1; mode=block"
+    }
+	tls {
+        protocols tls1.2 tls1.3      # drop TLS 1.0 / 1.1
+        ciphers TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 \
+                TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 \
+                TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 \
+                TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 \
+                TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 \
+                TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+        curves x25519 secp256r1 secp384r1
+    }
+}
+https://api2.friendgroupb.com {
+    reverse_proxy a2s-query-flask:20000
+	header {
+        # Remove server identification
+        -Server
+        -X-Powered-By
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        Permissions-Policy "geolocation=(), camera=(), microphone=(), payment=()"
+        X-XSS-Protection "1; mode=block"
+    }
+	tls {
+        protocols tls1.2 tls1.3      # drop TLS 1.0 / 1.1
+        ciphers TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 \
+                TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 \
+                TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 \
+                TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 \
+                TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 \
+                TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+        curves x25519 secp256r1 secp384r1
+    }
+}

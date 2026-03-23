@@ -1,0 +1,158 @@
+---
+- name: Full deployment (Docker + user + stack)
+  hosts: web
+  become: true
+
+  vars:
+    deploy_user: deploy
+    deploy_home: "/home/{{ deploy_user }}"
+
+    docker_arch_map:
+      x86_64: amd64
+      aarch64: arm64
+
+    docker_arch: "{{ docker_arch_map.get(ansible_architecture, ansible_architecture) }}"
+    docker_apt_keyring: /etc/apt/keyrings/docker.asc
+
+    docker_apt_repo: >-
+      deb [arch={{ docker_arch }} signed-by={{ docker_apt_keyring }}]
+      https://download.docker.com/linux/debian
+      {{ ansible_distribution_release }} stable
+
+  pre_tasks:
+
+    - name: Install required base packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - python3-pip
+          - acl
+          - lib32z1
+        state: present
+        update_cache: true
+
+    - name: Create deploy user
+      ansible.builtin.user:
+        name: "{{ deploy_user }}"
+        shell: /bin/bash
+        create_home: true
+
+    - name: Create docker group (if not exists)
+      ansible.builtin.group:
+        name: docker
+        state: present
+
+    - name: Add deploy user to docker group
+      ansible.builtin.user:
+        name: "{{ deploy_user }}"
+        groups: docker
+        append: true
+
+    - name: Create apt keyrings directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Install Docker GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/debian/gpg
+        dest: "{{ docker_apt_keyring }}"
+        mode: "0644"
+
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: "{{ docker_apt_repo }}"
+        state: present
+
+    - name: Install Docker engine
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Install setuptools (required for pip module)
+      ansible.builtin.package:
+        name: python3-setuptools
+        state: present
+
+    - name: Install Python Docker SDK via apt
+      ansible.builtin.package:
+        name:
+          - python3-docker
+          - python3-requests
+        state: present
+      vars:
+        ansible_python_interpreter: /usr/bin/python3
+
+  tasks:
+
+    - name: Create deployment directories (owned by deploy user)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0755"
+      loop:
+        - "{{ deploy_root }}"
+        - "{{ deploy_root }}/caddy"
+        - "{{ deploy_root }}/caddy/data"
+        - "{{ deploy_root }}/caddy/config"
+        - "{{ deploy_root }}/php"
+        - "{{ deploy_root }}/db-init"
+        - "{{ deploy_root }}/sites"
+        - "{{ deploy_root }}/mariadb"
+        - "{{ deploy_root }}/mariadb/data"
+
+#this one might not be working?
+    - name: Copy site files
+      ansible.builtin.copy:
+         src: "{{ local_sites_dir }}/"
+         dest: "{{ deploy_root }}/sites/"
+         owner: "{{ deploy_user }}"
+         group: "{{ deploy_user }}"
+         mode: preserve
+
+    - name: Render templates
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "{{ deploy_root }}/{{ item.dest }}"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0644"
+      loop:
+        - { src: "docker-compose.yml.j2", dest: "docker-compose.yml" }
+        - { src: "Caddyfile.j2", dest: "caddy/Caddyfile" }
+        - { src: "Dockerfile.php-fpm.j2", dest: "php/Dockerfile" }
+        - { src: "php-fpm-www.conf.j2", dest: "php/www.conf" }
+        - { src: "php.ini.j2", dest: "php/php.ini" }
+
+    - name: Render DB init script (secure perms)
+      ansible.builtin.template:
+        src: templates/db-init.sql.j2
+        dest: "{{ deploy_root }}/db-init/01-init.sql"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0600"
+
+    - name: Deploy stack (run as deploy user)
+      become_user: "{{ deploy_user }}"
+      community.docker.docker_compose_v2:
+        project_src: "{{ deploy_root }}"
+        state: present
+        build: always
+        pull: always
