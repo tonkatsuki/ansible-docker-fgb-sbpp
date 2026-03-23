@@ -10,3 +10,10 @@ templates/Caddyfile.j2 has some hardcoded FQDNs on the Caddyfile
 db-init.sql.j2 references an IP references in all.yml to allow external DB access (your gmod server most likely!)
 Update invntory.yml with your target IPa
 Copy site files task in playbook.yml took forever last time, might not be working correctly?
+
+
+Manual changes on SBPP I forgot about:
+cd themes/sbpp-windmill-dashboard/core/
+edit navbar.tpl to include your Links 1/2/3 if using the sbpp-windmill theme
+
+Change favicon at sbpp/windmill-dashboard/assets/images/favicon.ico
